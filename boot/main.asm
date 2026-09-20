@@ -2,27 +2,39 @@
 bits 16
 
 _start:
-    ; Reset segment registers to a known state (0x0000)
     xor ax, ax
     mov ds, ax
     mov es, ax
-    
-    mov si, message
 
-_print_loop:
-    lodsb ; Load next byte from [SI] into AL and increment SI
-    test al, al ; Check if character is the null terminator
-    jz _halt
-    
-    mov ah, 0x0e ; BIOS teletype function
-    int 0x10
-    jmp _print_loop
+    ; set up a safe stack area below the bootloader
+    mov ss, ax
+    mov sp, 0x7c00
 
-_halt:
-    jmp $
+    ; Save the boot drive
+    mov [boot_drive], dl
 
-message: 
-    db "Hey", 0
+    mov ah, 0x02
+    mov al, 1
+    mov ch, 0
+    mov cl, 2
+    mov dh, 0
+    mov dl, [boot_drive]
 
-times 510 - ($ - $$) db 0 ; Padding to fit exactly 510 bytes
-dw 0xaa55 ; Magic boot signiture 2 bytes
+    ; load main function
+    mov bx, 0x1000
+
+    int 0x13
+    jc disk_error
+
+    ; go to main
+    jmp 0x0000:0x1000
+
+disk_error:
+    hlt
+    jmp disk_error
+
+boot_drive db 0
+
+; add padding to make bin file 512 bytes wide
+times 510 - ($ - $$) db 0
+dw 0xaa55

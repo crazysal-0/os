@@ -1,17 +1,35 @@
 ASM = nasm
-ASMFLAGS = -f bin
+CC = gcc
+
+CFLAGS = -m16 -ffreestanding -fno-pie -fno-stack-protector -Wall -Wextra -Ikernel/inc
+LDFLAGS = -m16 -nostdlib -static -T linker.ld -Wl,--oformat=binary
 
 BOOT = boot/main.asm
-OUTPUT = bin/os.bin
+KERNEL_SOURCES = $(wildcard kernel/src/*.c)
 
-all: $(OUTPUT)
+BOOT_BIN = bin/boot.bin
+KERNEL_OBJECTS = $(KERNEL_SOURCES:kernel/src/%.c=bin/%.o)
+KERNEL_BIN = bin/kernel.bin
+OS_IMAGE = bin/os.img
 
-$(OUTPUT): $(BOOT)
+all: $(OS_IMAGE)
+
+$(BOOT_BIN): $(BOOT)
 	mkdir -p bin
-	$(ASM) $(ASMFLAGS) $(BOOT) -o $(OUTPUT)
+	$(ASM) -f bin $(BOOT) -o $(BOOT_BIN)
 
-run: $(OUTPUT)
-	qemu-system-i386 -drive format=raw,file=$(OUTPUT)
+bin/%.o: kernel/src/%.c
+	mkdir -p bin
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(KERNEL_BIN): $(KERNEL_OBJECTS)
+	$(CC) $(LDFLAGS) $(KERNEL_OBJECTS) -o $(KERNEL_BIN)
+
+$(OS_IMAGE): $(BOOT_BIN) $(KERNEL_BIN)
+	cat $(BOOT_BIN) $(KERNEL_BIN) > $(OS_IMAGE)
+
+run: $(OS_IMAGE)
+	qemu-system-i386 -drive format=raw,file=$(OS_IMAGE)
 
 clean:
 	rm -rf bin
